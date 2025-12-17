@@ -1,3 +1,4 @@
+// Hent alle elementer
 const videoPlayer = document.getElementById('videoPlayer');
 const videoWrapper = document.getElementById('videoWrapper');
 const landingPage = document.getElementById('landingPage');
@@ -8,31 +9,27 @@ const controlsContainer = document.getElementById('controlsContainer');
 const decisionMessage = document.getElementById('decisionMessage');
 const timerBar = document.getElementById('timerBar');
 const fadeOverlay = document.getElementById('fadeOverlay');
-
-// Loaderne
-const mainLoader = document.getElementById('mainLoader');
+const scoreValue = document.getElementById('scoreValue');
+const livesDisplay = document.getElementById('livesDisplay');
+const gameHeader = document.getElementById('gameHeader');
+const headerProgress = document.getElementById('headerProgress');
+const adventureName = document.getElementById('adventureName');
+const gameStatus = document.getElementById('gameStatus');
 const gameLoader = document.getElementById('gameLoader');
-const backgroundVideo = document.getElementById('backgroundVideo');
-
-// Sørg for at landingsside-videoen skjuler loaderen når den er klar
-backgroundVideo.oncanplaythrough = () => {
-    mainLoader.style.display = 'none';
-    backgroundVideo.style.opacity = '1';
-};
-
-const VIDEO_PLAYBACK_DURATION = 8; 
-const DECISION_DURATION = 10;      
 
 let currentAdventure = null; 
 let currentSceneId = null;
 let videoCheckInterval = null;      
 let decisionTimeout = null;         
+let score = 0;
+let lives = 3;
 
+// URL-er (Dobbeltsjekket at disse fungerer med raw=1)
 const ADVENTURE_URLS = {
     'skog': { 
         'start': 'https://www.dropbox.com/scl/fi/o3nrr05weu2al4uqtziik/Scene1.mp4?rlkey=c7a2wjy3oadxo8ivnmuwca9np&st=tjxvyio0&raw=1',
         'practice': 'https://www.dropbox.com/scl/fi/a4urya8fsf00wiiwjwxy0/ScenePractis.mp4?rlkey=ws8ivc992vtrvhois39q8buw4&st=1fywi0du&raw=1',
-        'fail': 'https://www.dropbox.com/scl/fi/stpn568qd45rg3g3cfyvu/SceneFail.mp4?rlkey=472nyimpqnm26n7ktro1v4y8t&st=3qas819n&raw=1',
+        'fail': 'https://www.dropbox.com/scl/fi/stpn568qd45rg3g3cfyvu/SceneFail.mp4?rlkey=472nyimpnm26n7ktro1v4y8t&st=3qas819n&raw=1',
         'sucess': 'https://www.dropbox.com/scl/fi/mxwgreh5cb8quznbizd1q/SceneWin.mp4?rlkey=km8xi2428l3pko5d6rtr5mmex&st=knfbonlu&raw=1'
     },
     'hav': {
@@ -45,102 +42,175 @@ const ADVENTURE_URLS = {
 
 const ADVENTURE_DATA = {
     'skog': {
-        'start': { choices: [{ text: 'Trene litt', targetScene: 'practice' }, { text: 'Prøv triks', targetScene: 'fail' }] },
-        'practice': { choices: [{ text: 'Gjør trikset nå', targetScene: 'sucess' }] },
-        'sucess': { isFinal: true, message: 'Rått! Du landet trikset perfekt etter trening!', nextTarget: 'start_landing', buttonText: 'Velg nytt eventyr' },
-        'fail': { isFinal: true, message: 'Det gikk ikke! Det er lurt å trene litt først.', nextTarget: 'start', buttonText: 'Prøv igjen' }
+        'start': { choices: [{ text: 'Trene litt', target: 'practice', pts: 50 }, { text: 'Prøv triks', target: 'fail', pts: 0 }] },
+        'practice': { choices: [{ text: 'Gjør trikset nå', target: 'sucess', pts: 100 }] },
+        'sucess': { isFinal: true, msg: 'Rått! Du landet trikset perfekt!' },
+        'fail': { isFinal: true, msg: 'Det gikk ikke! Du skadet deg litt.' }
     },
     'hav': {
-        'start': { choices: [{ text: 'Trene først', targetScene: 'practice' }, { text: 'Prøv direkte', targetScene: 'fail' }] },
-        'practice': { choices: [{ text: 'Prøv trikset', targetScene: 'sucess' }] },
-        'sucess': { isFinal: true, message: 'Fantastisk! Du klarte det!', nextTarget: 'start_landing', buttonText: 'Velg nytt eventyr' },
-        'fail': { isFinal: true, message: 'Det gikk ikke helt etter planen. Kanskje trene litt?', nextTarget: 'start', buttonText: 'Prøv igjen' }
-    },
-    'time_out': { isFinal: true, message: 'Tiden rant ut!', nextTarget: 'start', buttonText: 'Prøv igjen' }
+        'start': { choices: [{ text: 'Trene først', target: 'practice', pts: 50 }, { text: 'Prøv trikset', target: 'fail', pts: 0 }] },
+        'practice': { choices: [{ text: 'PRøv trikset', target: 'sucess', pts: 100 }] },
+        'sucess': { isFinal: true, msg: 'Fantastisk! Du landet trikset i snøen!' },
+        'fail': { isFinal: true, msg: 'Uff, det ble et hardt fall i snøen.' }
+    }
 };
 
+// Funksjon for å starte spillet
 window.startAdventure = function(type) {
     currentAdventure = type;
+    score = 0; lives = 3;
+    scoreValue.textContent = score;
+    updateLivesDisplay();
+    adventureName.textContent = type === 'skog' ? 'Skate' : 'Snow';
+    
     landingPage.style.display = 'none';
     videoWrapper.style.display = 'block'; 
+    gameHeader.style.display = 'flex';
+    
     playScene('start');
 }
 
 function playScene(sceneId) {
-    if (sceneId === 'start_landing') { location.reload(); return; }
+    if (sceneId === 'restart') { location.reload(); return; }
     currentSceneId = sceneId;
-    const sceneUrl = ADVENTURE_URLS[currentAdventure][sceneId];
-    const scene = ADVENTURE_DATA[currentAdventure][sceneId];
+    const url = ADVENTURE_URLS[currentAdventure][sceneId];
 
     clearAllIntervals();
     resultOverlay.style.display = 'none';
     decisionBox.style.display = 'none';
     fadeOverlay.style.opacity = 1;
-    gameLoader.style.display = 'block'; // Vis loader mens video hentes
+    
+    // Vis loader hvis den eksisterer
+    if (gameLoader) gameLoader.style.display = 'block';
 
-    videoPlayer.src = sceneUrl;
+    videoPlayer.src = url;
     videoPlayer.load();
+
+    // Når videoen kan spille
     videoPlayer.oncanplay = () => {
-        gameLoader.style.display = 'none'; // Skjul loader når klar
+        if (gameLoader) gameLoader.style.display = 'none';
         fadeOverlay.style.opacity = 0;
         videoPlayer.style.opacity = 1;
-        videoPlayer.play();
-        if (scene && scene.isFinal) {
-            videoPlayer.onended = () => showFinalPlacard(currentSceneId);
-        } else {
-            videoCheckInterval = setInterval(checkVideoTime, 100);
-        }
+        videoPlayer.play().catch(e => console.log("Auto-play blocked:", e));
+        
+        // Start sjekk av tid
+        videoCheckInterval = setInterval(updateFrame, 50);
+    };
+
+    // Feilhåndtering hvis video ikke laster
+    videoPlayer.onerror = () => {
+        console.error("Kunne ikke laste video:", url);
+        alert("Video kunne ikke lastes. Sjekk internett eller Dropbox-linken.");
     };
 }
 
-function checkVideoTime() {
-    if (videoPlayer.currentTime >= VIDEO_PLAYBACK_DURATION) {
+function updateFrame() {
+    if (!videoPlayer.duration) return;
+    
+    const progress = (videoPlayer.currentTime / videoPlayer.duration) * 100;
+    headerProgress.style.width = progress + "%";
+    
+    const data = ADVENTURE_DATA[currentAdventure][currentSceneId];
+
+    // Hvis filmen er ferdig
+    if (videoPlayer.ended) {
+        clearInterval(videoCheckInterval);
+        if (data.isFinal) {
+            showFinalPlacard(currentSceneId);
+        } else {
+            // Hvis en ikke-final film slutter uventet, vis valgene
+            showChoices();
+        }
+        return;
+    }
+
+    // Hvis det ikke er en final-film, sjekk 8-sekunders grense
+    if (!data.isFinal && videoPlayer.currentTime >= 8) {
         clearInterval(videoCheckInterval);
         videoPlayer.pause();
-        showChoices(currentSceneId);
+        showChoices();
     }
 }
 
-function showChoices(sceneId) {
-    const scene = ADVENTURE_DATA[currentAdventure][sceneId];
+// HJELPEFUNKSJONER (LIV, SCORE, TIMEOUT)
+function updateLivesDisplay() {
+    let heartIcons = "";
+    for (let i = 0; i < 3; i++) { heartIcons += (i < lives) ? "❤️" : "🖤"; }
+    livesDisplay.innerHTML = heartIcons;
+}
+
+function updateScore(pts) {
+    score += pts;
+    scoreValue.textContent = score;
+}
+
+function showChoices() {
+    const data = ADVENTURE_DATA[currentAdventure][currentSceneId];
     controlsContainer.innerHTML = '';
-    decisionMessage.textContent = scene.message || "Hva gjør du nå?";
+    decisionMessage.textContent = "Velg din vei:";
     
-    scene.choices.forEach(choice => {
+    data.choices.forEach(c => {
         const btn = document.createElement('button');
-        btn.textContent = choice.text;
-        btn.onclick = () => playScene(choice.targetScene);
+        btn.textContent = c.text;
+        btn.onclick = () => {
+            updateScore(c.pts);
+            playScene(c.target);
+        };
         controlsContainer.appendChild(btn);
     });
 
     decisionBox.style.display = 'flex';
     setTimeout(() => decisionBox.style.opacity = 1, 10);
     
-    timerBar.style.animation = 'none';
-    void timerBar.offsetWidth; 
-    timerBar.style.animation = `countdown ${DECISION_DURATION}s linear forwards`;
-    decisionTimeout = setTimeout(() => showFinalPlacard('time_out'), DECISION_DURATION * 1000);
+    timerBar.style.animation = `countdown 10s linear forwards`;
+    decisionTimeout = setTimeout(() => {
+        lives--;
+        updateLivesDisplay();
+        showFinalPlacard('timeout');
+    }, 10000);
 }
 
 function showFinalPlacard(sceneId) {
     clearAllIntervals();
     decisionBox.style.display = 'none';
-    const sceneData = sceneId === 'time_out' ? ADVENTURE_DATA['time_out'] : ADVENTURE_DATA[currentAdventure][sceneId];
     
-    let title = (sceneId === 'sucess' || sceneId === 'slutt_bra') ? "GRATULERER!" : "MISLYKKET!";
+    let title = "RESULTAT"; let msg = ""; let btnText = "Prøv igjen"; let target = "start";
     
+    if (sceneId === 'timeout') {
+        msg = "Du brukte for lang tid!";
+        title = "FOR SEINT!";
+    } else {
+        const data = ADVENTURE_DATA[currentAdventure][sceneId];
+        msg = data.msg;
+        if (sceneId === 'sucess') {
+            title = "SUKSESS!"; btnText = "Nytt eventyr"; target = "restart";
+        } else if (sceneId === 'fail') {
+            lives--; updateLivesDisplay(); title = "FEIL!";
+        }
+    }
+
+    if (lives <= 0) {
+        title = "GAME OVER"; msg = "Ingen liv igjen!"; btnText = "Start på nytt"; target = "restart";
+    }
+
     resultContent.innerHTML = `
-        <h2 style="font-size: 2em; margin-bottom: 15px;">${title}</h2>
-        <p style="margin-bottom: 25px;">${sceneData.message}</p>
-        <button class="retry-btn" onclick="playScene('${sceneData.nextTarget}')">${sceneData.buttonText}</button>
+        <h2 style="font-size: 3em;">${title}</h2>
+        <p style="font-size: 1.2em;">${msg}</p>
+        <p style="font-size: 1.5em; font-weight: 800;">SCORE: ${score}</p>
+        <button class="retry-btn" onclick="playScene('${target}')">${btnText}</button>
     `;
-    
     resultOverlay.style.display = 'flex';
     setTimeout(() => resultOverlay.style.opacity = 1, 10);
-    videoPlayer.pause();
 }
 
 function clearAllIntervals() {
     clearInterval(videoCheckInterval);
     clearTimeout(decisionTimeout);
+    timerBar.style.animation = 'none';
 }
+
+// Fjern mainLoader når siden er klar
+window.onload = () => {
+    document.getElementById('mainLoader').style.display = 'none';
+    backgroundVideo.style.opacity = '1';
+};
