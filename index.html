@@ -2,16 +2,17 @@
 <html lang="no">
 <head>
     <meta charset="UTF-8">
-    <title>Skater Challenge - Interaktiv</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Extreme Challenge - Fullscreen Pro</title>
     <style>
         body { 
             display: flex; justify-content: center; align-items: center;
             min-height: 100vh; text-align: center; 
             font-family: 'Inter', sans-serif; margin: 0;
-            background-color: #1a1a1a; color: white; overflow: hidden;
+            background-color: #000; color: white; overflow: hidden;
         }
         
-        /* LOADING SPINNER */
+        /* LOADERS */
         .loader {
             width: 50px; height: 50px; 
             border: 5px solid rgba(255,255,255,0.1);
@@ -20,9 +21,34 @@
             animation: spin 1s linear infinite;
             position: absolute; top: 50%; left: 50%; 
             transform: translate(-50%, -50%);
-            z-index: 100; display: block;
+            z-index: 2000;
         }
         @keyframes spin { 0% { transform: translate(-50%, -50%) rotate(0deg); } 100% { transform: translate(-50%, -50%) rotate(360deg); } }
+
+        /* HUD HEADER - SMAL & GRADIENT */
+        #gameHeader {
+            position: fixed; top: 0; left: 0; width: 100%; height: 60px;
+            /* Mørk gradient nederst for å sikre lesbarhet */
+            background: linear-gradient(to bottom, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.4) 70%, transparent 100%);
+            backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            display: none; z-index: 1001;
+            align-items: center; justify-content: space-between;
+            padding: 0 40px; box-sizing: border-box;
+        }
+
+        .header-item { 
+            font-size: 0.85em; font-weight: 700; letter-spacing: 2px; 
+            text-transform: uppercase; text-shadow: 1px 1px 4px rgba(0,0,0,0.8);
+        }
+        #livesDisplay { font-size: 1.2em; letter-spacing: 4px; }
+        #scoreValue { transition: 0.3s; display: inline-block; font-size: 1.1em; }
+
+        /* PROGRESS LINE */
+        #headerProgress {
+            position: absolute; bottom: 0; left: 0; width: 0%; height: 2px;
+            background: #ffffff; box-shadow: 0 0 10px rgba(255,255,255,0.5);
+            transition: width 0.1s linear;
+        }
 
         /* LANDING PAGE */
         #landingPage { 
@@ -37,7 +63,7 @@
         }
 
         .intro-content { padding: 100px 0 0 80px; text-align: left; z-index: 30; }
-        #mainTitle { font-size: 4em; margin: 0; text-transform: uppercase; letter-spacing: -2px; }
+        #mainTitle { font-size: 4em; margin: 0; text-transform: uppercase; letter-spacing: -2px; line-height: 1; }
 
         .choicesContainer { 
             position: absolute; bottom: 80px; width: 100%; 
@@ -45,98 +71,93 @@
         }
 
         .adventure-choice { 
-            width: 300px; cursor: pointer; margin: 0 20px; 
-            border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 20px; 
+            width: 280px; cursor: pointer; margin: 0 15px; 
+            border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 15px; 
             overflow: hidden; transition: 0.4s; background: rgba(0,0,0,0.6); 
             backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
         }
-        .adventure-choice:hover { transform: translateY(-10px); border-color: white; }
-        .adventure-choice img { width: 100%; height: 180px; object-fit: cover; }
-        .adventure-choice h2 { margin: 0; padding: 20px; font-size: 1.2em; text-transform: uppercase; }
+        .adventure-choice:hover { transform: translateY(-10px); border-color: white; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .adventure-choice img { width: 100%; height: 160px; object-fit: cover; }
+        .adventure-choice h2 { margin: 0; padding: 15px; font-size: 1em; text-transform: uppercase; }
 
-        /* VIDEO WRAPPER */
-        .videoWrapper {
-            width: 95vw; height: auto; aspect-ratio: 16 / 9; max-width: 1200px; 
-            position: relative; overflow: hidden; border-radius: 20px; 
-            display: none; z-index: 50; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.9); 
-        }
-        
-        #videoPlayer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; object-fit: cover; transition: opacity 0.6s; }
-        #fadeOverlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: black; z-index: 60; transition: opacity 0.6s; }
+        /* VIDEO ENGINE */
+        .videoWrapper { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; display: none; z-index: 50; background: #000; }
+        #videoPlayer { width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.6s; }
+        #fadeOverlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: black; z-index: 60; pointer-events: none; transition: opacity 0.6s; }
 
-        /* OVERLAYS (GLASS DESIGN) */
+        /* OVERLAYS */
         #decisionBox, #resultOverlay {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background-color: rgba(0, 0, 0, 0.4); backdrop-filter: blur(15px);
+            background-color: rgba(0, 0, 0, 0.4); backdrop-filter: blur(20px);
             z-index: 999; display: none; flex-direction: column; justify-content: center; align-items: center;
             opacity: 0; transition: opacity 0.5s ease;
         }
 
         .glass-content {
-            background: rgba(255, 255, 255, 0.05); padding: 40px; border-radius: 24px;
-            border: 1px solid rgba(255, 255, 255, 0.1); max-width: 550px; width: 90%;
+            background: rgba(20, 20, 20, 0.7); padding: 50px; border-radius: 25px;
+            border: 1px solid rgba(255, 255, 255, 0.1); max-width: 550px; width: 85%;
             display: flex; flex-direction: column; align-items: center;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
         }
 
-        #timerContainer { width: 100%; height: 4px; background: rgba(255, 255, 255, 0.1); margin-bottom: 25px; border-radius: 2px; overflow: hidden; }
-        #timerBar { height: 100%; width: 100%; background: white; transform-origin: left; }
+        #timerContainer { width: 100%; height: 4px; background: rgba(255, 255, 255, 0.1); margin-bottom: 30px; border-radius: 2px; overflow: hidden; }
+        #timerBar { height: 100%; width: 100%; background: #ffffff; transform-origin: left; }
         @keyframes countdown { from { transform: scaleX(1); } to { transform: scaleX(0); } }
 
-        /* KNAPPE-STIL MED BEDRE AVSTAND */
-        .controls { 
-            width: 100%; 
-            display: flex; 
-            gap: 20px; /* Økt avstand mellom knappene her */
-            justify-content: center; 
-            flex-wrap: wrap; 
-        }
-        
+        .controls { width: 100%; display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; }
         .controls button, .retry-btn {
-            padding: 14px 28px; font-size: 14px; cursor: pointer; font-weight: 600; 
-            background-color: rgba(255, 255, 255, 0.1); color: white; 
-            border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 10px; 
-            transition: 0.2s; text-transform: uppercase; letter-spacing: 1.2px;
-            min-height: 50px; min-width: 160px;
-            display: inline-flex; align-items: center; justify-content: center;
+            padding: 16px 30px; font-size: 13px; cursor: pointer; font-weight: 700; 
+            background: rgba(255,255,255,0.08); color: white; border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 10px; transition: 0.2s; text-transform: uppercase; letter-spacing: 1.5px;
         }
-        .controls button:hover, .retry-btn:hover { background-color: rgba(255, 255, 255, 0.2); border-color: white; transform: translateY(-2px); }
+        .controls button:hover, .retry-btn:hover { background: white; color: black; transform: translateY(-3px); }
     </style>
 </head>
 <body>
 
     <div id="mainLoader" class="loader"></div>
 
+    <div id="gameHeader">
+        <div class="header-item">LIV: <span id="livesDisplay">❤️❤️❤️</span></div>
+        <div class="header-item"><span id="adventureName">SKATE</span> — POENG: <span id="scoreValue">0</span></div>
+        <div class="header-item">STATUS: <span id="gameStatus" style="color: #4CAF50;">AKTIV</span></div>
+        <div id="headerProgress"></div>
+    </div>
+
     <div id="landingPage">
         <video autoplay muted loop id="backgroundVideo">
             <source src="https://www.dropbox.com/scl/fi/o3nrr05weu2al4uqtziik/Scene1.mp4?rlkey=c7a2wjy3oadxo8ivnmuwca9np&st=tjxvyio0&raw=1" type="video/mp4">
         </video>
         <div class="intro-content">
-            <h1 id="mainTitle">Skateboard eller Snowboard?</h1>
-            <p style="font-size: 1.4em; opacity: 0.8;">Velg din utfordring og ta kontrollen.</p>
+            <h1 id="mainTitle">Skateboard eller <br>Snowboard?</h1>
+            <p style="font-size: 1.4em; opacity: 0.7; margin-top: 20px;">Velg din utfordring og ta kontrollen over skjebnen.</p>
         </div>
         <div class="choicesContainer">
             <div class="adventure-choice" onclick="startAdventure('skog')">
                 <img src="https://images.pexels.com/photos/1018484/pexels-photo-1018484.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1">
-                <h2>Skater Challenge</h2>
+                <h2>Skateboard Challenge</h2>
             </div>
             <div class="adventure-choice" onclick="startAdventure('hav')">
-                <img src="https://elements-resized.envatousercontent.com/envato-dam-assets-production/EVA/TRX/c3/c0/b4/3a/40/v1_E11/E117L8DU.jpg?w=1600&cf_fit=scale-down&q=85&format=auto&s=ed4c97b93cc7b4d0a988009ba487079c36236de281432f1c37a00b33f2c1a7f1">
-                <h2>Snowboard Challange</h2>
+                <img src="https://images.pexels.com/photos/848618/pexels-photo-848618.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1">
+                <h2>Snowboard Challenge</h2>
             </div>
         </div>
     </div>
     
     <div id="videoWrapper" class="videoWrapper">
         <div id="gameLoader" class="loader" style="display: none;"></div>
+        
         <video id="videoPlayer" playsinline muted></video>
         <div id="fadeOverlay"></div>
+
         <div id="decisionBox">
             <div class="glass-content">
                 <div id="timerContainer"><div id="timerBar"></div></div>
-                <p id="decisionMessage" style="text-transform: uppercase; font-weight: bold; margin-bottom: 25px;"></p>
+                <p id="decisionMessage" style="text-transform: uppercase; font-weight: 800; font-size: 1.3em; margin-bottom: 30px;"></p>
                 <div id="controlsContainer" class="controls"></div>
             </div>
         </div>
+
         <div id="resultOverlay">
             <div class="glass-content" id="resultContent"></div>
         </div>
