@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+    <meta charset="UTF-8">
+    <title>Skater Challenge - Interaktiv</title>
+    <style>
+        body { 
+            display: flex; justify-content: center; align-items: center;
+            min-height: 100vh; text-align: center; 
+            font-family: 'Inter', sans-serif; margin: 0;
+            background-color: #1a1a1a; color: white; overflow: hidden;
+        }
+        
+        /* LOADING SPINNER */
+        .loader {
+            width: 50px; height: 50px; 
+            border: 5px solid rgba(255,255,255,0.1);
+            border-top: 5px solid #ffffff; 
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            position: absolute; top: 50%; left: 50%; 
+            transform: translate(-50%, -50%);
+            z-index: 100; display: block;
+        }
+        @keyframes spin { 0% { transform: translate(-50%, -50%) rotate(0deg); } 100% { transform: translate(-50%, -50%) rotate(360deg); } }
+
+        /* LANDING PAGE */
+        #landingPage { 
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            display: flex; flex-direction: column; z-index: 20; 
+        }
+
+        #backgroundVideo { 
+            position: absolute; top: 50%; left: 50%; min-width: 100%; min-height: 100%; 
+            z-index: -1; transform: translate(-50%, -50%); object-fit: cover; 
+            filter: brightness(0.4); opacity: 0; transition: opacity 1s ease;
+        }
+
+        .intro-content { padding: 100px 0 0 80px; text-align: left; z-index: 30; }
+        #mainTitle { font-size: 4em; margin: 0; text-transform: uppercase; letter-spacing: -2px; }
+
+        .choicesContainer { 
+            position: absolute; bottom: 80px; width: 100%; 
+            display: flex; justify-content: center; z-index: 30; 
+        }
+
+        .adventure-choice { 
+            width: 300px; cursor: pointer; margin: 0 20px; 
+            border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 20px; 
+            overflow: hidden; transition: 0.4s; background: rgba(0,0,0,0.6); 
+            backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
+        }
+        .adventure-choice:hover { transform: translateY(-10px); border-color: white; }
+        .adventure-choice img { width: 100%; height: 180px; object-fit: cover; }
+        .adventure-choice h2 { margin: 0; padding: 20px; font-size: 1.2em; text-transform: uppercase; }
+
+        /* VIDEO WRAPPER */
+        .videoWrapper {
+            width: 95vw; height: auto; aspect-ratio: 16 / 9; max-width: 1200px; 
+            position: relative; overflow: hidden; border-radius: 20px; 
+            display: none; z-index: 50; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.9); 
+        }
+        
+        #videoPlayer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; object-fit: cover; transition: opacity 0.6s; }
+        #fadeOverlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: black; z-index: 60; transition: opacity 0.6s; }
+
+        /* OVERLAYS (GLASS DESIGN) */
+        #decisionBox, #resultOverlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(0, 0, 0, 0.4); backdrop-filter: blur(15px);
+            z-index: 999; display: none; flex-direction: column; justify-content: center; align-items: center;
+            opacity: 0; transition: opacity 0.5s ease;
+        }
+
+        .glass-content {
+            background: rgba(255, 255, 255, 0.05); padding: 40px; border-radius: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.1); max-width: 550px; width: 90%;
+            display: flex; flex-direction: column; align-items: center;
+        }
+
+        #timerContainer { width: 100%; height: 4px; background: rgba(255, 255, 255, 0.1); margin-bottom: 25px; border-radius: 2px; overflow: hidden; }
+        #timerBar { height: 100%; width: 100%; background: white; transform-origin: left; }
+        @keyframes countdown { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+
+        /* KNAPPE-STIL MED BEDRE AVSTAND */
+        .controls { 
+            width: 100%; 
+            display: flex; 
+            gap: 20px; /* Økt avstand mellom knappene her */
+            justify-content: center; 
+            flex-wrap: wrap; 
+        }
+        
+        .controls button, .retry-btn {
+            padding: 14px 28px; font-size: 14px; cursor: pointer; font-weight: 600; 
+            background-color: rgba(255, 255, 255, 0.1); color: white; 
+            border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 10px; 
+            transition: 0.2s; text-transform: uppercase; letter-spacing: 1.2px;
+            min-height: 50px; min-width: 160px;
+            display: inline-flex; align-items: center; justify-content: center;
+        }
+        .controls button:hover, .retry-btn:hover { background-color: rgba(255, 255, 255, 0.2); border-color: white; transform: translateY(-2px); }
+    </style>
+</head>
+<body>
+
+    <div id="mainLoader" class="loader"></div>
+
+    <div id="landingPage">
+        <video autoplay muted loop id="backgroundVideo">
+            <source src="https://www.dropbox.com/scl/fi/o3nrr05weu2al4uqtziik/Scene1.mp4?rlkey=c7a2wjy3oadxo8ivnmuwca9np&st=tjxvyio0&raw=1" type="video/mp4">
+        </video>
+        <div class="intro-content">
+            <h1 id="mainTitle">Skateboard eller Snowboard?</h1>
+            <p style="font-size: 1.4em; opacity: 0.8;">Velg din utfordring og ta kontrollen.</p>
+        </div>
+        <div class="choicesContainer">
+            <div class="adventure-choice" onclick="startAdventure('skog')">
+                <img src="https://images.pexels.com/photos/1018484/pexels-photo-1018484.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1">
+                <h2>Skater Challenge</h2>
+            </div>
+            <div class="adventure-choice" onclick="startAdventure('hav')">
+                <img src="https://elements-resized.envatousercontent.com/envato-dam-assets-production/EVA/TRX/c3/c0/b4/3a/40/v1_E11/E117L8DU.jpg?w=1600&cf_fit=scale-down&q=85&format=auto&s=ed4c97b93cc7b4d0a988009ba487079c36236de281432f1c37a00b33f2c1a7f1">
+                <h2>Snowboard Challange</h2>
+            </div>
+        </div>
+    </div>
+    
+    <div id="videoWrapper" class="videoWrapper">
+        <div id="gameLoader" class="loader" style="display: none;"></div>
+        <video id="videoPlayer" playsinline muted></video>
+        <div id="fadeOverlay"></div>
+        <div id="decisionBox">
+            <div class="glass-content">
+                <div id="timerContainer"><div id="timerBar"></div></div>
+                <p id="decisionMessage" style="text-transform: uppercase; font-weight: bold; margin-bottom: 25px;"></p>
+                <div id="controlsContainer" class="controls"></div>
+            </div>
+        </div>
+        <div id="resultOverlay">
+            <div class="glass-content" id="resultContent"></div>
+        </div>
+    </div>
+
+    <script src="script_2.js"></script>
+</body>
+</html>
